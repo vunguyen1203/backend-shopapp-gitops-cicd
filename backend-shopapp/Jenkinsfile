@@ -1,0 +1,129 @@
+pipeline {
+    agent any
+
+    environment {
+        SONAR_PROJECT_KEY = ""
+
+        REGISTRY_USER = credentials('harbor-user')
+        REGISTRY_URL = ""
+        REGISTRY_PROJECT = "shopapp"
+        IMAGE_TAG = "${GIT_BRANCH.tokenize('/').pop()}-${GIT_COMMIT.substring(0,7)}"
+        DOCKER_CONTAINER = "backend-shopapp"
+        DOCKER_IMAGE = "${REGISTRY_URL}/${REGISTRY_PROJECT}/${DOCKER_CONTAINER}:${IMAGE_TAG}"
+        TRIVY_REPORT = 'trivy-report.html'
+
+        RECIPIENT_EMAIL = ""
+
+        GITHUB_USER = credentials('github-user')
+        GITHUB_EMAIL = ""
+    }
+
+    stages {
+        stage('Clean') {
+            steps {
+                deleteDir()
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Sonarqube analysis') {
+            steps {
+                script {
+                    def scannerHome = tool "SonarScanner"
+                    withSonarQubeEnv('Sonarqube server connection') {
+                        sh """
+                            ${scannerHome}/bin/sonar-scanner \
+                            -D${SONAR_PROJECT_KEY}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Build images') {
+            steps {
+                sh """
+                    docker build -t ${DOCKER_IMAGE} .
+                """
+            }
+        }
+
+        stage('Trivy scan images') {
+            steps {
+                sh """
+                    trivy image \
+                    --format template \
+                    --template @/var/lib/jenkins/html.tpl \
+                    --report all \
+                    ${DOCKER_IMAGE} > ${TRIVY_REPORT}
+                """
+            }
+        }
+
+        stage('Push images to registry') {
+            steps {
+                sh """
+                    echo "${REGISTRY_USER_PSW}" | docker login ${REGISTRY_URL} -u "${REGISTRY_USER_USR}" --password-stdin 
+                    docker push ${DOCKER_IMAGE}
+                    docker rmi -f ${DOCKER_IMAGE}
+                """
+            }
+        }
+
+        stage('Update manifest') {
+            steps {
+                sh """
+                    rm -rf manifest
+
+                    git clone https://${GITHUB_USER_USR}:${GITHUB_USER_PSW}@github.com/${GITHUB_USER_USR}/backend-shopapp-manifest.git manifest
+
+                    cd manifest
+
+                    sed -i 's|${REGISTRY_URL}/${REGISTRY_PROJECT}/${DOCKER_CONTAINER}:.*|${DOCKER_IMAGE}|g' ./backend-shopapp-deployment.yaml
+
+                    git config user.name "${GITHUB_USER_USR}"
+                    git config user.email "${GITHUB_EMAIL}"
+
+                    git add backend-shopapp-deployment.yaml
+
+                    git commit -m "update backend image to ${IMAGE_TAG}"
+
+                    git push origin main
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            mail to: "${RECIPIENT_EMAIL}",
+                 subject: "SUCCESSFUL: Job '${JOB_NAME}' [Build #${BUILD_NUMBER}]",
+                 body: """
+                    Success! The pipeline for ${JOB_NAME} has completed.
+
+                    - Build Number: #${BUILD_NUMBER}
+                    - Branch: ${GIT_BRANCH}
+                    - Commit: ${GIT_COMMIT}
+                    - Build details at: ${BUILD_URL}
+                 """
+        }
+
+        failure {
+            mail to: "${RECIPIENT_EMAIL}",
+                 subject: "FAILED: Job '${JOB_NAME}' [Build #${BUILD_NUMBER}]",
+                 body: """
+                    Failed! The pipeline for ${JOB_NAME} encountered an error.
+
+                    - Build Number: #${BUILD_NUMBER}
+                    - Branch: ${GIT_BRANCH}
+                    - Commit: ${GIT_COMMIT}            
+                    - Check the error log at: ${BUILD_URL}console
+                 """
+        }
+    }
+}

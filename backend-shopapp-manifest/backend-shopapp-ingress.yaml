@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-shopapp-ingress
+  namespace: shopapp
+spec:
+  ingressClassName: traefik #orther ingress controller
+  rules:
+    - host: #domain application
+      http:
+        paths:
+          - backend:
+              service:
+                name: backend-shopapp-service
+                port:
+                  number: 8080
+            path: /
+            pathType: Prefix
+

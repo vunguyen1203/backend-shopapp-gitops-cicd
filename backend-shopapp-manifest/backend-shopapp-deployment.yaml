@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: backend-shopapp-deployment
+  name: backend-shopapp-deployment
+  namespace: shopapp
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 2
+  revisionHistoryLimit: 11
+  selector:
+    matchLabels:
+      app: backend-shopapp-deployment
+  template:
+    metadata:
+      labels:
+        app: backend-shopapp-deployment
+    spec:
+      containers:
+        - image: #docker images
+          imagePullPolicy: Always
+          name: backend-shopapp
+          ports:
+            - containerPort: 8080
+              name: tcp
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /app/wwwroot
+              name: backend-shopapp-volume
+            - mountPath: /app/logs
+              name: backend-shopapp-volume
+          envFrom:
+            - secretRef:
+                name: backend-shopapp-appsetting-json-secret
+                optional: false
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+            requests:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: backend-shopapp-volume
+          persistentVolumeClaim:
+            claimName: backend-shopapp-pvc
+      imagePullSecrets:
+        - name: auth-registry
