@@ -25,18 +25,20 @@ This project demonstrates how to implement a GitOps Continuous Integration and C
 
 2. Jenkins starts the CI pipeline automatically when it detects a new commit.
 
-3. Jenkins builds the BackendShop application and checks that the project can be built successfully.
+3. Jenkins runs automated tests for the .NET backend to verify that the application works correctly.
 
 4. SonarQube analyzes the source code to find bugs, code smells, and security issues.
 
-5. Trivy scans the Docker image for security vulnerabilities.
+5. Jenkins runs the database migration and delivers the database changes to the target environment.
 
-6. Jenkins builds a new Docker image and pushes it to the Harbor registry.
+6. Trivy scans the Docker image for security vulnerabilities.
 
-7. Jenkins updates the Kubernetes deployment manifest with the new image tag and pushes the change to the Manifest repository on GitHub.
+7. Jenkins builds a new Docker image and pushes it to the Harbor registry.
 
-8. Argo CD monitors the Manifest repository. When it detects the new commit, it syncs the changes to the Kubernetes cluster automatically.
+8. Jenkins updates the Kubernetes deployment manifest with the new image tag and pushes the change to the Manifest repository on GitHub.
 
-9. Kubernetes pulls the new Docker image from Harbor and updates the application with the latest version.
+9. Argo CD monitors the Manifest repository. When it detects the new commit, it syncs the changes to the Kubernetes cluster automatically.
+
+10. Kubernetes pulls the new Docker image from Harbor and updates the application with the latest version.
 
 This workflow helps automate the build and deployment process. It also improves code quality, increases security, and makes deployments faster and more reliable.
