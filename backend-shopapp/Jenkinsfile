@@ -2,15 +2,18 @@ pipeline {
     agent any
 
     environment {
-        SONAR_PROJECT_KEY = ""
+        SONAR_PROJECT_KEY = "backend-shopapp"
 
+        MIGRATION_NAME = "shopapp-${new Date().format("yyyyMMdd-HHmmss")}"
+        DB_CONNECTION = credentials('db-connection-shopapp')
+        
         REGISTRY_USER = credentials('harbor-user')
         REGISTRY_URL = ""
         REGISTRY_PROJECT = "shopapp"
         IMAGE_TAG = "${GIT_BRANCH.tokenize('/').pop()}-${GIT_COMMIT.substring(0,7)}"
         DOCKER_CONTAINER = "backend-shopapp"
         DOCKER_IMAGE = "${REGISTRY_URL}/${REGISTRY_PROJECT}/${DOCKER_CONTAINER}:${IMAGE_TAG}"
-        TRIVY_REPORT = 'trivy-report.html'
+        TRIVY_REPORT = "trivy-report.html"
 
         RECIPIENT_EMAIL = ""
 
@@ -31,16 +34,59 @@ pipeline {
             }
         }
 
+        stage('Test backend with dotnet') {
+            steps {
+                withDotNet(sdk: 'dotnet-8') {
+                    sh "dotnet test"
+                }
+            }
+        }
+
         stage('Sonarqube analysis') {
             steps {
                 script {
                     def scannerHome = tool "SonarScanner"
-                    withSonarQubeEnv('Sonarqube server connection') {
-                        sh """
-                            dotnet ${scannerHome}/SonarScanner.MSBuild.dll begin /k:"${SONAR_PROJECT_KEY}"
-                            dotnet build ./backend-shopapp.sln
-                            dotnet ${scannerHome}/SonarScanner.MSBuild.dll end
-                        """
+                    withDotNet(sdk: 'dotnet-8') {
+                        withSonarQubeEnv('Sonarqube server connection') {
+                            sh """
+                                dotnet ${scannerHome}/SonarScanner.MSBuild.dll begin /k:"${SONAR_PROJECT_KEY}"
+                                dotnet build ./backend-shopapp.sln
+                                dotnet ${scannerHome}/SonarScanner.MSBuild.dll end
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Migration database') {
+            steps {
+                script {
+                    withDotNet(sdk: 'dotnet-8') {
+                        try {
+                            timeout(time: 5, unit: 'MINUTES') {
+                                env.userChoice = input message: 'Do you want to migrate the database?',
+                                    parameters: [choice(name: 'Versioning Service', choices: 'no\nyes', description: 'Choose "yes" if you want to migrate!')]
+                            }
+                            if (env.userChoice == 'yes') {
+                                sh """
+                                    export PATH="\$PATH:\$HOME/.dotnet/tools"
+                                    dotnet tool update --global dotnet-ef || \
+                                    dotnet tool install --global dotnet-ef
+
+                                    dotnet ef migrations add ${MIGRATION_NAME} \
+                                        --project ./backend-shopapp
+
+                                    dotnet ef database update \
+                                        --project ./backend-shopapp \
+                                        --connection "${DB_CONNECTION}"
+                                """
+                            } else {
+                                echo "Migration cancelled."
+                            }
+                        } catch (Exception err){
+                            echo "Migration cancelled or timeout."
+                        }
                     }
                 }
             }
