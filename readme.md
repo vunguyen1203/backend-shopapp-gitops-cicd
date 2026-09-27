@@ -3,8 +3,8 @@
 This project demonstrates how to implement a GitOps Continuous Integration and Continuous Deployment (CI/CD) pipeline for a ASP.NET Web API application. The pipeline automates the process of building the application, analyzing code quality, creating Docker images, scanning Docker images, and deploying the application to a Kubernetes cluster. Argo CD follows the GitOps approach by syncing deployment changes from GitHub to Kubernetes automatically. This helps reduce manual work, improve code quality, increase security, and make deployments faster and more reliable.
 
 <p align="center">
-  <a href="https://postimg.cc/8jzR1dcS">
-    <img src="https://i.postimg.cc/Qxp0J0rH/gitops-cicd-drawio.png" alt="GitOps CI/CD Pipeline">
+  <a href="">
+    <img src="https://i.postimg.cc/nh1s7TMp/gitops-cicd-drawio.png" alt="GitOps CI/CD Pipeline">
   </a>
 </p>
 
